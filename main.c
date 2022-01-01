@@ -47,34 +47,34 @@ static struct ptrsz copy_file_to_heap(FILE* fp) {
     return (struct ptrsz){.data = file_data, .size = n_bytes};
 }
 
-static struct ei get_e_ident_data(struct ptrsz file_data) {
-    // This code can be written in a MUCH BETTER WAY
-    struct ei rt;
-    rt.mag0 = file_data.data[0];
-    rt.mag1 = file_data.data[1];
-    rt.mag2 = file_data.data[2];
-    rt.mag3 = file_data.data[3];
-    rt.class = file_data.data[4];
-    rt.data = file_data.data[5];
-    rt.version = file_data.data[6];
-    rt.osabi = file_data.data[7];
-    rt.abiversion = file_data.data[8];
-    rt.pad = file_data.data[9];
-    rt.nident = file_data.data[10];
+void print_e_ident(struct ptrsz file_data) {
 
-    return rt;
-}
+    if (file_data.size < 16){
+        printf("There is no space in this file for an e_ident header!\n");
+        exit(89);
+    }
+    
+    unsigned char mag0 = file_data.data[0];
+    unsigned char mag1 = file_data.data[1];
+    unsigned char mag2 = file_data.data[2];
+    unsigned char mag3 = file_data.data[3];
+    unsigned char class = file_data.data[4]; // 1 for 32bit, 2 for 64bit, 0 for NONE
+    unsigned char data = file_data.data[5]; // endian, 1 for little, 2 for big
+    unsigned char version = file_data.data[6];
+    unsigned char osabi = file_data.data[7];
+    unsigned char abiversion = file_data.data[8];
+    unsigned char pad = file_data.data[9];
+    unsigned char nident = file_data.data[10];
 
-void print_e_ident(struct ei ei) {
     int is_eif =
-        ei.mag0 == 0x7f && ei.mag1 == 'E' && ei.mag2 == 'L' && ei.mag3 == 'F';
+        mag0 == 0x7f && mag1 == 'E' && mag2 == 'L' && mag3 == 'F';
 	if (!is_eif){
 		printf("Not an ELF!\n");
 		exit(1);
 	}
-
+    printf("...Info from first 16 bytes of file, the e_ident data: \n");
 	// print EI_CLASS
-	switch(ei.class){
+	switch(class){
 	case ELFCLASSNONE:
 		printf("EI_CLASS: ELFCLASSNONE\n");
 		break;
@@ -85,12 +85,12 @@ void print_e_ident(struct ei ei) {
 		printf("EI_CLASS: ELFCLASS64\n");
 		break;
 	default:
-		printf("Something is odd with EI_CLASS, value is: %d\n", ei.class);
+		printf("Something is odd with EI_CLASS, value is: %d\n", class);
 		exit(1);
 	}
 
 	// print EI_DATA
-	switch(ei.data){
+	switch(data){
 	case ELFDATANONE:
 		printf("EI_DATA: ELFDATANONE\n");
 		break;
@@ -101,12 +101,12 @@ void print_e_ident(struct ei ei) {
 		printf("EI_DATA: ELFDATA2MSB\n");
 		break;
 	default:
-		printf("Something is odd with EI_DATA, value is: %d\n", ei.data);
+		printf("Something is odd with EI_DATA, value is: %d\n", data);
 		exit(1);
 	}
 
 	// print EI_VERSION
-	switch(ei.data){
+	switch(data){
 	case EV_NONE:
         printf("EI_VERSION: EV_NONE");
         break;
@@ -114,12 +114,12 @@ void print_e_ident(struct ei ei) {
         printf("EI_VERSION: EV_CURRENT, ELF specification version: %d\n", EV_CURRENT);
         break;
 	default:
-        printf("Something is odd with EI_VERSION, value is: %d\n", ei.version);
+        printf("Something is odd with EI_VERSION, value is: %d\n", version);
 		exit(1);
 	}
 
     // print EI_OSABI
-    switch(ei.osabi){
+    switch(osabi){
     case ELFOSABI_NONE | ELFOSABI_SYSV:
         printf("EI_OSABI: ELFOSABI_NONE / ELFOSABI_SYSV\n");
         break;
@@ -151,17 +151,22 @@ void print_e_ident(struct ei ei) {
         printf("EI_OSABI: ELFOSABI_STANDALONE\n");
         break;
     default:
-        printf("Something is odd with EI_OSABI, value is: %d\n", ei.osabi);
+        printf("Something is odd with EI_OSABI, value is: %d\n", osabi);
 		exit(1);
     }
 
-    printf("EI_ABIVERSION: %d\n", ei.abiversion);
-    printf("EI_PAD: %d\n", ei.pad);
-    printf("EI_NIDENT: %d\n",  ei.nident);
+    printf("EI_ABIVERSION: %d\n", abiversion);
+    printf("EI_PAD: %d\n", pad);
+    printf("EI_NIDENT: %d\n", nident);
 }
 
 void print_header_data(Elf64_Ehdr e){
     // Should have line here to printf e_ident data
+    
+    printf("\n...Program Header data:\n");
+
+    // print e_ident
+    printf("e_ident: ALREADY PRINTED ABOVE!\n");
 
     // print e_type
     switch(e.e_type){
@@ -408,7 +413,7 @@ void print_program_header_table(struct ptrsz file_data, Elf64_Ehdr e){
         exit(39);
     }
 
-    printf("\nProgram Header Table:\n");
+    printf("\n...Program Header Table:\n");
     printf(
         "%8s %8s %8s %12s %12s %8s %12s %8s\n",
         "type", "flags", "offset", "vaddr", "paddr", 
@@ -442,7 +447,7 @@ void print_section_header_table(struct ptrsz file_data, Elf64_Ehdr e){
     memcpy(&names_header, file_data.data + e.e_shoff + e.e_shstrndx * e.e_shentsize, e.e_shentsize);
     char *names = names_header.sh_offset + file_data.data;
 
-    printf("\nSection Header Table:\n");
+    printf("\n...Section Header Table:\n");
     printf(
         "%8s %8s %8s %12s %12s %8s %8s %8s %8s %8s %s\n",
         "name", "type", "flags", "addr", "offset", "size", 
@@ -465,8 +470,8 @@ int main(int argc, char const* argv[]) {
     FILE* ifp = fopen(argv[1], "rb");
     struct ptrsz file_data = copy_file_to_heap(ifp);
 
-    struct ei El_info = get_e_ident_data(file_data);
-    print_e_ident(El_info);
+    // Print interpation of first bytes, e_ident
+    print_e_ident(file_data);
 
     // Grab header data
     Elf64_Ehdr e;
