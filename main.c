@@ -47,24 +47,18 @@ static struct ptrsz copy_file_to_heap(FILE* fp) {
     return (struct ptrsz){.data = file_data, .size = n_bytes};
 }
 
-void print_e_ident(struct ptrsz file_data) {
-
-    if (file_data.size < 16){
-        printf("There is no space in this file for an e_ident header!\n");
-        exit(89);
-    }
-    
-    unsigned char mag0 = file_data.data[0];
-    unsigned char mag1 = file_data.data[1];
-    unsigned char mag2 = file_data.data[2];
-    unsigned char mag3 = file_data.data[3];
-    unsigned char class = file_data.data[4]; // 1 for 32bit, 2 for 64bit, 0 for NONE
-    unsigned char data = file_data.data[5]; // endian, 1 for little, 2 for big
-    unsigned char version = file_data.data[6];
-    unsigned char osabi = file_data.data[7];
-    unsigned char abiversion = file_data.data[8];
-    unsigned char pad = file_data.data[9];
-    unsigned char nident = file_data.data[10];
+void print_e_ident(unsigned char *ident_data) {    
+    unsigned char mag0 = ident_data[0];
+    unsigned char mag1 = ident_data[1];
+    unsigned char mag2 = ident_data[2];
+    unsigned char mag3 = ident_data[3];
+    unsigned char class = ident_data[4]; // 1 for 32bit, 2 for 64bit, 0 for NONE
+    unsigned char data = ident_data[5]; // endian, 1 for little, 2 for big
+    unsigned char version = ident_data[6];
+    unsigned char osabi = ident_data[7];
+    unsigned char abiversion = ident_data[8];
+    unsigned char pad = ident_data[9];
+    unsigned char nident = ident_data[10];
 
     int is_eif =
         mag0 == 0x7f && mag1 == 'E' && mag2 == 'L' && mag3 == 'F';
@@ -72,17 +66,17 @@ void print_e_ident(struct ptrsz file_data) {
 		printf("Not an ELF!\n");
 		exit(1);
 	}
-    printf("...Info from first 16 bytes of file, the e_ident data: \n");
+    printf("\nInfo from first 16 bytes of file, the e_ident data:\n");
 	// print EI_CLASS
 	switch(class){
 	case ELFCLASSNONE:
 		printf("EI_CLASS: ELFCLASSNONE\n");
 		break;
 	case ELFCLASS32:
-		printf("EI_CLASS: ELFCLASS32\n");
+		printf("EI_CLASS: ELFCLASS32, (32 bit)\n");
 		break;
 	case ELFCLASS64:
-		printf("EI_CLASS: ELFCLASS64\n");
+		printf("EI_CLASS: ELFCLASS64, (64 bit)\n");
 		break;
 	default:
 		printf("Something is odd with EI_CLASS, value is: %d\n", class);
@@ -95,10 +89,10 @@ void print_e_ident(struct ptrsz file_data) {
 		printf("EI_DATA: ELFDATANONE\n");
 		break;
 	case ELFDATA2LSB:
-		printf("EI_DATA: ELFDATA2LSB\n");
+		printf("EI_DATA: ELFDATA2LSB, (little endian)\n");
 		break;
 	case ELFDATA2MSB:
-		printf("EI_DATA: ELFDATA2MSB\n");
+		printf("EI_DATA: ELFDATA2MSB, (big endian)\n");
 		break;
 	default:
 		printf("Something is odd with EI_DATA, value is: %d\n", data);
@@ -166,7 +160,9 @@ void print_header_data(Elf64_Ehdr e){
     printf("\n...Program Header data:\n");
 
     // print e_ident
-    printf("e_ident: ALREADY PRINTED ABOVE!\n");
+    print_e_ident(e.e_ident);
+
+    printf("\nOther data:\n");
 
     // print e_type
     switch(e.e_type){
@@ -470,11 +466,19 @@ int main(int argc, char const* argv[]) {
     FILE* ifp = fopen(argv[1], "rb");
     struct ptrsz file_data = copy_file_to_heap(ifp);
 
-    // Print interpation of first bytes, e_ident
-    print_e_ident(file_data);
+    // These variable will come to use later when the code is improved
+    unsigned char class = file_data.data[4]; // 1 for 32bit, 2 for 64bit, 0 for NONE
+    unsigned char data = file_data.data[5]; // endian, 1 for little, 2 for big
+    (void)class;
+    (void)data;
 
     // Grab header data
-    Elf64_Ehdr e;
+    Elf64_Ehdr e; // For now assumeing I am dealing with an elf 64
+    if (file_data.size < sizeof e){
+        printf("File does not have enough space for elf header!\n");
+        exit(89);
+    }
+
     memcpy(&e, file_data.data, sizeof e);
     print_header_data(e);
     print_program_header_table(file_data, e);
