@@ -57,8 +57,6 @@ void print_e_ident(unsigned char *ident_data) {
     unsigned char version = ident_data[6];
     unsigned char osabi = ident_data[7];
     unsigned char abiversion = ident_data[8];
-    unsigned char pad = ident_data[9];
-    unsigned char nident = ident_data[10];
 
     int is_eif =
         mag0 == 0x7f && mag1 == 'E' && mag2 == 'L' && mag3 == 'F';
@@ -150,8 +148,6 @@ void print_e_ident(unsigned char *ident_data) {
     }
 
     printf("EI_ABIVERSION: %d\n", abiversion);
-    printf("EI_PAD: %d\n", pad);
-    printf("EI_NIDENT: %d\n", nident);
 }
 
 void print_header_data(Elf64_Ehdr e){
@@ -483,6 +479,9 @@ int main(int argc, char const* argv[]) {
     print_header_data(e);
     print_program_header_table(file_data, e);
     print_section_header_table(file_data, e);
+
+    // print_plt(file_data, e);
+    // print_got(file_data, e);
 
 
     return 0;
