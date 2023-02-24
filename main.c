@@ -4,7 +4,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <execinfo.h>
 #include <string.h>
 #include "stuff.h"
 
@@ -27,33 +26,13 @@ struct ei {
     unsigned char nident;
 };
 
-// I grabbed this from gnu.org
-// To make function print function names I sadly had to make all the
-// functions extern. I also had to give gcc the -rdynamic option
-// There are better ways to to backtrace printing
-void print_trace (void)  {
-    void *array[10];
-    char **strings;
-    int size, i;
-
-    size = backtrace (array, 10);
-    strings = backtrace_symbols (array, size);
-    if (strings != NULL){
-        printf ("Obtained %d stack frames.\n", size);
-        for (i = 0; i < size; i++)
-            printf ("%s\n", strings[i]);
-    }
-
-  free (strings);
-}
-
-int ffstat(FILE* fp, struct stat* s) {
+static int ffstat(FILE* fp, struct stat* s) {
     // Convert from file pointer to file descripter
     int fd = fileno(fp);
     return fstat(fd, s);
 }
 
-int get_size_of_file(FILE* ifp) {
+static int get_size_of_file(FILE* ifp) {
     struct stat s;
     ffstat(ifp, &s);
     int n_bytes = s.st_size;
@@ -61,7 +40,7 @@ int get_size_of_file(FILE* ifp) {
     return n_bytes;
 }
 
-struct ptrsz copy_file_to_heap(FILE* fp) {
+static struct ptrsz copy_file_to_heap(FILE* fp) {
     int n_bytes = get_size_of_file(fp);
     char* file_data = malloc(n_bytes);
     fread(file_data, n_bytes, 1, fp);
@@ -69,7 +48,7 @@ struct ptrsz copy_file_to_heap(FILE* fp) {
     return (struct ptrsz){.data = file_data, .size = n_bytes};
 }
 
-void print_EI_CLASS(unsigned char class){
+static void print_EI_CLASS(unsigned char class){
 	switch(class){
 	case ELFCLASSNONE:
 		printf("EI_CLASS: ELFCLASSNONE\n");
@@ -86,7 +65,7 @@ void print_EI_CLASS(unsigned char class){
 	}
 }
 
-void print_EI_DATA(unsigned char data){
+static void print_EI_DATA(unsigned char data){
 	switch(data){
 	case ELFDATANONE:
 		printf("EI_DATA: ELFDATANONE\n");
@@ -102,7 +81,8 @@ void print_EI_DATA(unsigned char data){
 		exit(1);
 	}
 }
-void print_EI_VERSION(unsigned char version){
+
+static void print_EI_VERSION(unsigned char version){
 	switch(version){
 	case EV_NONE:
         printf("EI_VERSION: EV_NONE");
@@ -115,7 +95,8 @@ void print_EI_VERSION(unsigned char version){
 		exit(1);
 	}
 }
-void print_EI_OSABI(unsigned char osabi){
+
+static void print_EI_OSABI(unsigned char osabi){
     switch(osabi){
     case ELFOSABI_NONE | ELFOSABI_SYSV:
         printf("EI_OSABI: ELFOSABI_NONE / ELFOSABI_SYSV\n");
@@ -153,7 +134,7 @@ void print_EI_OSABI(unsigned char osabi){
     }
 }
 
-void print_e_ident(unsigned char *ident_data) {    
+static void print_e_ident(unsigned char *ident_data) {    
     unsigned char mag0 = ident_data[EI_MAG0]; // first byte
     unsigned char mag1 = ident_data[EI_MAG1]; // second byte
     unsigned char mag2 = ident_data[EI_MAG2]; // third byte
@@ -180,7 +161,7 @@ void print_e_ident(unsigned char *ident_data) {
     printf("EI_ABIVERSION: %d\n", abiversion);
 }
 
-void print_header_data(Elf64_Ehdr e){
+static void print_header_data(Elf64_Ehdr e){
     // Should have line here to printf e_ident data
     
     printf("\n...Program Header data:\n");
@@ -241,18 +222,16 @@ void print_header_data(Elf64_Ehdr e){
     printf("e_shstrndx: %d\n", e.e_shstrndx);
 }
 
-void print_program_header_table(struct ptrsz file_data, Elf64_Ehdr e){
+static void print_program_header_table(struct ptrsz file_data, Elf64_Ehdr e){
     Elf64_Phdr p;
     if(sizeof p != e.e_phentsize){
         printf("BAD STUFF, sizeof p != e.e_phentsize\n");
-        print_trace();
         exit(38);
     }
 
     // Should check for wrap around, does not
     if(e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size){
         printf("BAD STUFF, e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size\n");
-        print_trace();
         exit(39);
     }
 
@@ -272,18 +251,16 @@ void print_program_header_table(struct ptrsz file_data, Elf64_Ehdr e){
     }
 }
 
-void print_section_header_table(struct ptrsz file_data, Elf64_Ehdr e){
+static void print_section_header_table(struct ptrsz file_data, Elf64_Ehdr e){
     Elf64_Shdr s;
     if(sizeof s != e.e_shentsize){
         printf("BAD STUFF\n");
-        print_trace();
         exit(38);
     }
 
     // Should check for wrap around, does not
     if(e.e_shnum * e.e_shentsize + e.e_shoff > file_data.size){
         printf("BAD STUFF\n");
-        print_trace();
         exit(39);
     }
 
