@@ -4,3 +4,7 @@
 *.txt
 some_file
 *.dd
+*.elf
+*_exe
+*.exe
+*.tgz
