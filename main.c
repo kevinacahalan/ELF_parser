@@ -139,7 +139,7 @@ static void print_e_ident(unsigned char *ident_data) {
     unsigned char mag1 = ident_data[EI_MAG1]; // second byte
     unsigned char mag2 = ident_data[EI_MAG2]; // third byte
     unsigned char mag3 = ident_data[EI_MAG3]; // fouth byte
-    unsigned char class = ident_data[4]; // 1 for 32bit, 2 for 64bit, 0 for NONE
+    unsigned char class = ident_data[EI_CLASS]; // 1 for 32bit, 2 for 64bit, 0 for NONE
     unsigned char data = ident_data[5]; // endian, 1 for little, 2 for big
     unsigned char version = ident_data[6];
     unsigned char osabi = ident_data[7];
@@ -222,16 +222,80 @@ static void print_header_data(Elf64_Ehdr e){
     printf("e_shstrndx: %d\n", e.e_shstrndx);
 }
 
-static void print_program_header_table(struct ptrsz file_data, Elf64_Ehdr e){
-    Elf64_Phdr p;
+static void print_program_header_table32(struct ptrsz file_data, Elf32_Ehdr e){
+    Elf32_Phdr p;
     if(sizeof p != e.e_phentsize){
-        printf("BAD STUFF, sizeof p != e.e_phentsize\n");
+        printf("BAD STUFF at %s:%d, sizeof p != e.e_phentsize\n",__FILE__, __LINE__);
         exit(38);
     }
 
     // Should check for wrap around, does not
     if(e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size){
-        printf("BAD STUFF, e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size\n");
+        printf("BAD STUFF at %s:%d, e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size\n", __FILE__, __LINE__);
+        exit(39);
+    }
+
+    printf("\n...Program Header Table:\n");
+    printf(
+        "%8s %8s %8s %12s %12s %8s %12s %8s\n",
+        "type", "flags", "offset", "vaddr", "paddr", 
+        "filesz", "memsz", "align"
+        );
+    for (size_t i = 0; i < e.e_phnum; i++){
+        memcpy(&p, file_data.data + e.e_phoff + i * e.e_phentsize, e.e_phentsize);
+        printf(
+            "%8x %8x %8x %12x %12x %8x %12x %8x\n",
+            p.p_type, p.p_flags, p.p_offset, p.p_vaddr, p.p_paddr,
+            p.p_filesz, p.p_memsz, p.p_align
+        );
+    }
+}
+
+static void print_section_header_table32(struct ptrsz file_data, Elf32_Ehdr e){
+    Elf32_Shdr s;
+    if(sizeof s != e.e_shentsize){
+        printf("BAD STUFF at %s:%d\n", __FILE__, __LINE__);
+        exit(38);
+    }
+
+    // Should check for wrap around, does not
+    if(e.e_shnum * e.e_shentsize + e.e_shoff > file_data.size){
+        printf("BAD STUFF at %s:%d\n", __FILE__, __LINE__);
+        exit(39);
+    }
+
+    // Find section names
+    Elf32_Shdr names_header;
+    memcpy(&names_header, file_data.data + e.e_shoff + e.e_shstrndx * e.e_shentsize, e.e_shentsize);
+    char *names = names_header.sh_offset + file_data.data;
+
+    printf("\n...Section Header Table:\n");
+    printf(
+        "%8s %8s %8s %12s %12s %8s %8s %8s %8s %8s %s\n",
+        "name", "type", "flags", "addr", "offset", "size", 
+        "link", "info", "addralign", "entsize", "Header Names"
+        );
+    for (size_t i = 0; i < e.e_shnum; i++){
+        memcpy(&s, file_data.data + e.e_shoff + i * e.e_shentsize, e.e_shentsize);
+        printf(
+            "%8x %8x %8x %12x %12x %8x %8x %8x %8x %8x %s\n",
+            s.sh_name, s.sh_type, s.sh_flags, s.sh_addr, s.sh_offset, 
+            s.sh_size, s.sh_link, s.sh_info, s.sh_addralign, s.sh_entsize,
+            s.sh_name + names
+        );
+    }
+}
+
+static void print_program_header_table64(struct ptrsz file_data, Elf64_Ehdr e){
+    Elf64_Phdr p;
+    if(sizeof p != e.e_phentsize){
+        printf("BAD STUFF at %s:%d, sizeof p != e.e_phentsize\n",__FILE__, __LINE__);
+        exit(38);
+    }
+
+    // Should check for wrap around, does not
+    if(e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size){
+        printf("BAD STUFF at %s:%d, e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size\n", __FILE__, __LINE__);
         exit(39);
     }
 
@@ -251,16 +315,16 @@ static void print_program_header_table(struct ptrsz file_data, Elf64_Ehdr e){
     }
 }
 
-static void print_section_header_table(struct ptrsz file_data, Elf64_Ehdr e){
+static void print_section_header_table64(struct ptrsz file_data, Elf64_Ehdr e){
     Elf64_Shdr s;
     if(sizeof s != e.e_shentsize){
-        printf("BAD STUFF\n");
+        printf("BAD STUFF at %s:%d\n", __FILE__, __LINE__);
         exit(38);
     }
 
     // Should check for wrap around, does not
     if(e.e_shnum * e.e_shentsize + e.e_shoff > file_data.size){
-        printf("BAD STUFF\n");
+        printf("BAD STUFF at %s:%d\n", __FILE__, __LINE__);
         exit(39);
     }
 
@@ -293,10 +357,28 @@ int main(int argc, char const* argv[]) {
     struct ptrsz file_data = copy_file_to_heap(ifp);
 
     // These variable will come to use later when the code is improved
-    unsigned char class = file_data.data[4]; // 1 for 32bit, 2 for 64bit, 0 for NONE
-    unsigned char data = file_data.data[5]; // endian, 1 for little, 2 for big
+    unsigned char class = file_data.data[EI_CLASS]; // 1 for 32bit, 2 for 64bit, 0 for NONE
+    unsigned char data = file_data.data[EI_DATA]; // endian, 1 for little, 2 for big
     (void)class;
     (void)data;
+
+    switch (class){
+    case ELFCLASS32:
+        printf("32 bit elf!...currently not supported\n");
+        exit(123);
+        break;
+    case ELFCLASS64:
+        printf("64 bit elf!");
+        break;
+    case ELFCLASSNONE:
+        printf("This ELF does not have a class, that's kinda funky ngl\n");
+        exit(123);
+    case ELFCLASSNUM:
+        printf("This ELF has the class ELFCLASSNUM...currently not supported\n");
+        exit(123);
+    default:
+        break;
+    }
 
     // Grab header data
     Elf64_Ehdr e; // For now assumeing I am dealing with an elf 64
@@ -307,8 +389,8 @@ int main(int argc, char const* argv[]) {
 
     memcpy(&e, file_data.data, sizeof e);
     print_header_data(e);
-    print_program_header_table(file_data, e);
-    print_section_header_table(file_data, e);
+    print_program_header_table64(file_data, e);
+    print_section_header_table64(file_data, e);
 
     // print_plt(file_data, e);
     // print_got(file_data, e);
