@@ -141,10 +141,10 @@ static void print_e_ident(unsigned char *ident_data) {
     unsigned char mag2 = ident_data[EI_MAG2]; // third byte
     unsigned char mag3 = ident_data[EI_MAG3]; // fouth byte
     unsigned char class = ident_data[EI_CLASS]; // 1 for 32bit, 2 for 64bit, 0 for NONE
-    unsigned char data = ident_data[5]; // endian, 1 for little, 2 for big
-    unsigned char version = ident_data[6];
-    unsigned char osabi = ident_data[7];
-    unsigned char abiversion = ident_data[8];
+    unsigned char data = ident_data[EI_DATA]; // endian, 1 for little, 2 for big
+    unsigned char version = ident_data[EI_VERSION];
+    unsigned char osabi = ident_data[EI_OSABI];
+    unsigned char abiversion = ident_data[EI_ABIVERSION];
 
     int is_eif =
         mag0 == ELFMAG0 && mag1 == 'E' && mag2 == 'L' && mag3 == 'F';
@@ -194,7 +194,6 @@ static void print_e_ident(unsigned char *ident_data) {
         }\
 \
         /* print e_machine */\
-        /* MIGHT BE A HUGE THING ON THE STACK */\
 \
         int amount = sizeof e_machine_look_up / sizeof e_machine_look_up[0];\
         printf("e_machine: %s\n", e.e_machine >= amount ? "Unknown": e_machine_look_up[e.e_machine]);\
@@ -223,14 +222,9 @@ static void print_e_ident(unsigned char *ident_data) {
         printf("e_shnum: %d\n", e.e_shnum);\
         printf("e_shstrndx: %d\n", e.e_shstrndx);\
     }
-
 PRINT_HEADER_DATA(32)
 PRINT_HEADER_DATA(64)
 
-#define GEN_PROGRAM_HEADER_TABLE_FMT(l) "%8x %8x %8" #l "x %12" #l "x %12" #l "x %8" #l "x %12" #l "x %8" #l "x %c"
-
-#define PROGRAM_HEADER_TABLE_FMT_32 GEN_PROGRAM_HEADER_TABLE_FMT()
-#define PROGRAM_HEADER_TABLE_FMT_64 GEN_PROGRAM_HEADER_TABLE_FMT(l)
 #define PRINT_PROGRAM_HEADER_TABLE(sz)\
     static void print_program_header_table##sz(struct ptrsz file_data, Elf##sz##_Ehdr e){\
         Elf##sz##_Phdr p;\
@@ -254,16 +248,15 @@ PRINT_HEADER_DATA(64)
         for (size_t i = 0; i < e.e_phnum; i++){\
             memcpy(&p, file_data.data + e.e_phoff + i * e.e_phentsize, e.e_phentsize);\
             printf(\
-                PROGRAM_HEADER_TABLE_FMT_##sz,\
+                "%8x %8x %8" PRIx##sz " %12" PRIx##sz " %12" PRIx##sz " %8" PRIx##sz " %12" PRIx##sz " %8" PRIx##sz " \n",\
                 p.p_type, p.p_flags, p.p_offset, p.p_vaddr, p.p_paddr,\
-                p.p_filesz, p.p_memsz, p.p_align, '\n'\
+                p.p_filesz, p.p_memsz, p.p_align\
             );\
         }\
     }
+PRINT_PROGRAM_HEADER_TABLE(32)
+PRINT_PROGRAM_HEADER_TABLE(64)
 
-#define GEN_SECTION_HEADER_TABLE_FMT(l) "%8x %8x %8" #l "x %12" #l "x %12" #l"x %8" #l"x %8x %8x %8" #l "x %8" #l "x %s %c"
-#define SECTION_HEADER_TABLE_FMT_32 GEN_SECTION_HEADER_TABLE_FMT()
-#define SECTION_HEADER_TABLE_FMT_64 GEN_SECTION_HEADER_TABLE_FMT(l)
 #define PRINT_SECTION_HEADER_TABLE(sz)\
     static void print_section_header_table##sz (struct ptrsz file_data, Elf##sz##_Ehdr e) \
     {\
@@ -293,18 +286,35 @@ PRINT_HEADER_DATA(64)
         for (size_t i = 0; i < e.e_shnum; i++){\
             memcpy(&s, file_data.data + e.e_shoff + i * e.e_shentsize, e.e_shentsize);\
             printf(\
-                SECTION_HEADER_TABLE_FMT_##sz,\
+                "%8x %8x %8" PRIx##sz " %12" PRIx##sz " %12" PRIx##sz " %8" PRIx##sz " %8x %8x %8" PRIx##sz " %8" PRIx##sz " %s \n",\
                 s.sh_name, s.sh_type, s.sh_flags, s.sh_addr, s.sh_offset, \
                 s.sh_size, s.sh_link, s.sh_info, s.sh_addralign, s.sh_entsize,\
-                s.sh_name + names, '\n'\
+                s.sh_name + names\
             );\
         }\
     }
-
-PRINT_PROGRAM_HEADER_TABLE(32)
 PRINT_SECTION_HEADER_TABLE(32)
-PRINT_PROGRAM_HEADER_TABLE(64)
 PRINT_SECTION_HEADER_TABLE(64)
+
+#define PRINT_ELF_DATA(sz)\
+    static void print_elf_data##sz(struct ptrsz file_data) {\
+        printf(#sz " bit elf!");\
+\
+        /* Grab header data */\
+        Elf##sz##_Ehdr e;\
+        if (file_data.size < sizeof e){\
+            printf("File does not have enough space for elf header!\n");\
+            exit(89);\
+        }\
+        \
+        memcpy(&e, file_data.data, sizeof e);\
+        print_header_data##sz(e);\
+        print_program_header_table##sz(file_data, e);\
+        print_section_header_table##sz(file_data, e);\
+        exit(123);\
+    }
+PRINT_ELF_DATA(32);
+PRINT_ELF_DATA(64);
 
 int main(int argc, char const* argv[]) {
     (void)argc;
@@ -314,45 +324,18 @@ int main(int argc, char const* argv[]) {
     // These variable will come to use later when the code is improved
     unsigned char class = file_data.data[EI_CLASS]; // 1 for 32bit, 2 for 64bit, 0 for NONE
     unsigned char data = file_data.data[EI_DATA]; // endian, 1 for little, 2 for big
-    (void)data;
 
     if (data != ELFDATA2LSB) {
-        printf("Only little endian ELF files are supported");
+        printf("There is currently only little endian ELF support");
         exit(123);
     }
 
-
     switch (class){
-    case ELFCLASS32: {
-        printf("32 bit elf!");
-        // Grab header data
-        Elf32_Ehdr e; // For now assumeing I am dealing with an elf 64
-        if (file_data.size < sizeof e){
-            printf("File does not have enough space for elf header!\n");
-            exit(89);
-        }
-        
-        memcpy(&e, file_data.data, sizeof e);
-        print_header_data32(e);
-        print_program_header_table32(file_data, e);
-        print_section_header_table32(file_data, e);
-        exit(123);
-        }
+    case ELFCLASS32:
+        print_elf_data32(file_data);
         break;
     case ELFCLASS64:
-        printf("64 bit elf!");
-        // Grab header data
-        Elf64_Ehdr e; // For now assumeing I am dealing with an elf 64
-        if (file_data.size < sizeof e){
-            printf("File does not have enough space for elf header!\n");
-            exit(89);
-        }
-        
-        memcpy(&e, file_data.data, sizeof e);
-        print_header_data64(e);
-        print_program_header_table64(file_data, e);
-        print_section_header_table64(file_data, e);
-
+        print_elf_data64(file_data);
         break;
     case ELFCLASSNONE:
         printf("This ELF does not have a class, that's kinda funky ngl\n");
