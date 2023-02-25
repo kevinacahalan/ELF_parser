@@ -222,134 +222,82 @@ static void print_header_data(Elf64_Ehdr e){
     printf("e_shstrndx: %d\n", e.e_shstrndx);
 }
 
-static void print_program_header_table32(struct ptrsz file_data, Elf32_Ehdr e){
-    Elf32_Phdr p;
-    if(sizeof p != e.e_phentsize){
-        printf("BAD STUFF at %s:%d, sizeof p != e.e_phentsize\n",__FILE__, __LINE__);
-        exit(38);
+#define PRINT_PROGRAM_HEADER_TABLE(sz, fmtstring)\
+    static void print_program_header_table##sz(struct ptrsz file_data, Elf##sz##_Ehdr e){\
+        Elf##sz##_Phdr p;\
+        if(sizeof p != e.e_phentsize){\
+            printf("BAD STUFF at %s:%d, sizeof p != e.e_phentsize\n",__FILE__, __LINE__);\
+            exit(38);\
+        }\
+\
+        /* Should check for wrap around, does not */\
+        if(e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size){\
+            printf("BAD STUFF at %s:%d, e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size\n", __FILE__, __LINE__);\
+            exit(39);\
+        }\
+\
+        printf("\n...Program Header Table:\n");\
+        printf(\
+            "%8s %8s %8s %12s %12s %8s %12s %8s\n",\
+            "type", "flags", "offset", "vaddr", "paddr", \
+            "filesz", "memsz", "align"\
+            );\
+        for (size_t i = 0; i < e.e_phnum; i++){\
+            memcpy(&p, file_data.data + e.e_phoff + i * e.e_phentsize, e.e_phentsize);\
+            printf(\
+                fmtstring,\
+                p.p_type, p.p_flags, p.p_offset, p.p_vaddr, p.p_paddr,\
+                p.p_filesz, p.p_memsz, p.p_align, '\n'\
+            );\
+        }\
     }
 
-    // Should check for wrap around, does not
-    if(e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size){
-        printf("BAD STUFF at %s:%d, e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size\n", __FILE__, __LINE__);
-        exit(39);
+#define PRINT_SECTION_HEADER_TABLE(sz, fmtstring)\
+    static void print_section_header_table##sz (struct ptrsz file_data, Elf##sz##_Ehdr e) \
+    {\
+        Elf##sz##_Shdr s;\
+        if(sizeof s != e.e_shentsize){\
+            printf("BAD STUFF at %s:%d\n", __FILE__, __LINE__);\
+            exit(38);\
+        }\
+\
+        /* Should check for wrap around, does not */\
+        if(e.e_shnum * e.e_shentsize + e.e_shoff > file_data.size){\
+            printf("BAD STUFF at %s:%d\n", __FILE__, __LINE__);\
+            exit(39);\
+        }\
+\
+        /* Find section names */ \
+        Elf##sz##_Shdr names_header;\
+        memcpy(&names_header, file_data.data + e.e_shoff + e.e_shstrndx * e.e_shentsize, e.e_shentsize);\
+        char *names = names_header.sh_offset + file_data.data;\
+\
+        printf("\n...Section Header Table:\n");\
+        printf(\
+            "%8s %8s %8s %12s %12s %8s %8s %8s %8s %8s %s\n",\
+            "name", "type", "flags", "addr", "offset", "size", \
+            "link", "info", "addralign", "entsize", "Header Names"\
+            );\
+        for (size_t i = 0; i < e.e_shnum; i++){\
+            memcpy(&s, file_data.data + e.e_shoff + i * e.e_shentsize, e.e_shentsize);\
+            printf(\
+                fmtstring,\
+                s.sh_name, s.sh_type, s.sh_flags, s.sh_addr, s.sh_offset, \
+                s.sh_size, s.sh_link, s.sh_info, s.sh_addralign, s.sh_entsize,\
+                s.sh_name + names, '\n'\
+            );\
+        }\
     }
 
-    printf("\n...Program Header Table:\n");
-    printf(
-        "%8s %8s %8s %12s %12s %8s %12s %8s\n",
-        "type", "flags", "offset", "vaddr", "paddr", 
-        "filesz", "memsz", "align"
-        );
-    for (size_t i = 0; i < e.e_phnum; i++){
-        memcpy(&p, file_data.data + e.e_phoff + i * e.e_phentsize, e.e_phentsize);
-        printf(
-            "%8x %8x %8x %12x %12x %8x %12x %8x\n",
-            p.p_type, p.p_flags, p.p_offset, p.p_vaddr, p.p_paddr,
-            p.p_filesz, p.p_memsz, p.p_align
-        );
-    }
-}
-
-static void print_section_header_table32(struct ptrsz file_data, Elf32_Ehdr e){
-    Elf32_Shdr s;
-    if(sizeof s != e.e_shentsize){
-        printf("BAD STUFF at %s:%d\n", __FILE__, __LINE__);
-        exit(38);
-    }
-
-    // Should check for wrap around, does not
-    if(e.e_shnum * e.e_shentsize + e.e_shoff > file_data.size){
-        printf("BAD STUFF at %s:%d\n", __FILE__, __LINE__);
-        exit(39);
-    }
-
-    // Find section names
-    Elf32_Shdr names_header;
-    memcpy(&names_header, file_data.data + e.e_shoff + e.e_shstrndx * e.e_shentsize, e.e_shentsize);
-    char *names = names_header.sh_offset + file_data.data;
-
-    printf("\n...Section Header Table:\n");
-    printf(
-        "%8s %8s %8s %12s %12s %8s %8s %8s %8s %8s %s\n",
-        "name", "type", "flags", "addr", "offset", "size", 
-        "link", "info", "addralign", "entsize", "Header Names"
-        );
-    for (size_t i = 0; i < e.e_shnum; i++){
-        memcpy(&s, file_data.data + e.e_shoff + i * e.e_shentsize, e.e_shentsize);
-        printf(
-            "%8x %8x %8x %12x %12x %8x %8x %8x %8x %8x %s\n",
-            s.sh_name, s.sh_type, s.sh_flags, s.sh_addr, s.sh_offset, 
-            s.sh_size, s.sh_link, s.sh_info, s.sh_addralign, s.sh_entsize,
-            s.sh_name + names
-        );
-    }
-}
-
-static void print_program_header_table64(struct ptrsz file_data, Elf64_Ehdr e){
-    Elf64_Phdr p;
-    if(sizeof p != e.e_phentsize){
-        printf("BAD STUFF at %s:%d, sizeof p != e.e_phentsize\n",__FILE__, __LINE__);
-        exit(38);
-    }
-
-    // Should check for wrap around, does not
-    if(e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size){
-        printf("BAD STUFF at %s:%d, e.e_phnum * e.e_phentsize + e.e_phoff > file_data.size\n", __FILE__, __LINE__);
-        exit(39);
-    }
-
-    printf("\n...Program Header Table:\n");
-    printf(
-        "%8s %8s %8s %12s %12s %8s %12s %8s\n",
-        "type", "flags", "offset", "vaddr", "paddr", 
-        "filesz", "memsz", "align"
-        );
-    for (size_t i = 0; i < e.e_phnum; i++){
-        memcpy(&p, file_data.data + e.e_phoff + i * e.e_phentsize, e.e_phentsize);
-        printf(
-            "%8x %8x %8lx %12lx %12lx %8lx %12lx %8lx\n",
-            p.p_type, p.p_flags, p.p_offset, p.p_vaddr, p.p_paddr,
-            p.p_filesz, p.p_memsz, p.p_align
-        );
-    }
-}
-
-static void print_section_header_table64(struct ptrsz file_data, Elf64_Ehdr e){
-    Elf64_Shdr s;
-    if(sizeof s != e.e_shentsize){
-        printf("BAD STUFF at %s:%d\n", __FILE__, __LINE__);
-        exit(38);
-    }
-
-    // Should check for wrap around, does not
-    if(e.e_shnum * e.e_shentsize + e.e_shoff > file_data.size){
-        printf("BAD STUFF at %s:%d\n", __FILE__, __LINE__);
-        exit(39);
-    }
-
-    // Find section names
-    Elf64_Shdr names_header;
-    memcpy(&names_header, file_data.data + e.e_shoff + e.e_shstrndx * e.e_shentsize, e.e_shentsize);
-    char *names = names_header.sh_offset + file_data.data;
-
-    printf("\n...Section Header Table:\n");
-    printf(
-        "%8s %8s %8s %12s %12s %8s %8s %8s %8s %8s %s\n",
-        "name", "type", "flags", "addr", "offset", "size", 
-        "link", "info", "addralign", "entsize", "Header Names"
-        );
-    for (size_t i = 0; i < e.e_shnum; i++){
-        memcpy(&s, file_data.data + e.e_shoff + i * e.e_shentsize, e.e_shentsize);
-        printf(
-            "%8x %8x %8lx %12lx %12lx %8lx %8x %8x %8lx %8lx %s\n",
-            s.sh_name, s.sh_type, s.sh_flags, s.sh_addr, s.sh_offset, 
-            s.sh_size, s.sh_link, s.sh_info, s.sh_addralign, s.sh_entsize,
-            s.sh_name + names
-        );
-    }
-}
-
+// There are better ways to deal with the format strings
+#define PROGRAM_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %12x %8x %c"
+#define PROGRAM_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %12lx %8lx %c"
+#define SECTION_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %8x %8x %8x %8x %s %c"
+#define SECTION_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %8x %8x %8lx %8lx %s %c"
+PRINT_PROGRAM_HEADER_TABLE(32, PROGRAM_HEADER_TABLE_FMT_32)
+PRINT_SECTION_HEADER_TABLE(32, SECTION_HEADER_TABLE_FMT_32)
+PRINT_PROGRAM_HEADER_TABLE(64, PROGRAM_HEADER_TABLE_FMT_64)
+PRINT_SECTION_HEADER_TABLE(64, SECTION_HEADER_TABLE_FMT_64)
 
 int main(int argc, char const* argv[]) {
     (void)argc;
@@ -359,13 +307,13 @@ int main(int argc, char const* argv[]) {
     // These variable will come to use later when the code is improved
     unsigned char class = file_data.data[EI_CLASS]; // 1 for 32bit, 2 for 64bit, 0 for NONE
     unsigned char data = file_data.data[EI_DATA]; // endian, 1 for little, 2 for big
-    (void)class;
     (void)data;
 
     switch (class){
     case ELFCLASS32:
         printf("32 bit elf!...currently not supported\n");
-        exit(123);
+        puts("will likely run into bad stuff");
+        // exit(123);
         break;
     case ELFCLASS64:
         printf("64 bit elf!");
