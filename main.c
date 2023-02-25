@@ -296,7 +296,6 @@ static void print_header_data(Elf64_Ehdr e){
         }\
     }
 
-// There are better ways to deal with the format strings
 PRINT_PROGRAM_HEADER_TABLE(32)
 PRINT_SECTION_HEADER_TABLE(32)
 PRINT_PROGRAM_HEADER_TABLE(64)
@@ -312,14 +311,31 @@ int main(int argc, char const* argv[]) {
     unsigned char data = file_data.data[EI_DATA]; // endian, 1 for little, 2 for big
     (void)data;
 
+    if (data != ELFDATA2LSB) {
+        printf("Only little endian ELF files are supported");
+        exit(123);
+    }
+
+
     switch (class){
     case ELFCLASS32:
         printf("32 bit elf!...currently not supported\n");
-        puts("will likely run into bad stuff");
-        // exit(123);
+        exit(123);
         break;
     case ELFCLASS64:
         printf("64 bit elf!");
+        // Grab header data
+        Elf64_Ehdr e; // For now assumeing I am dealing with an elf 64
+        if (file_data.size < sizeof e){
+            printf("File does not have enough space for elf header!\n");
+            exit(89);
+        }
+        
+        memcpy(&e, file_data.data, sizeof e);
+        print_header_data(e);
+        print_program_header_table64(file_data, e);
+        print_section_header_table64(file_data, e);
+
         break;
     case ELFCLASSNONE:
         printf("This ELF does not have a class, that's kinda funky ngl\n");
@@ -331,17 +347,7 @@ int main(int argc, char const* argv[]) {
         break;
     }
 
-    // Grab header data
-    Elf64_Ehdr e; // For now assumeing I am dealing with an elf 64
-    if (file_data.size < sizeof e){
-        printf("File does not have enough space for elf header!\n");
-        exit(89);
-    }
 
-    memcpy(&e, file_data.data, sizeof e);
-    print_header_data(e);
-    print_program_header_table64(file_data, e);
-    print_section_header_table64(file_data, e);
 
     // print_plt(file_data, e);
     // print_got(file_data, e);
