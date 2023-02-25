@@ -224,9 +224,6 @@ static void print_header_data(Elf64_Ehdr e){
 
 #define PROGRAM_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %12x %8x %c"
 #define PROGRAM_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %12lx %8lx %c"
-#define SECTION_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %8x %8x %8x %8x %s %c"
-#define SECTION_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %8x %8x %8lx %8lx %s %c"
-
 #define PRINT_PROGRAM_HEADER_TABLE(sz)\
     static void print_program_header_table##sz(struct ptrsz file_data, Elf##sz##_Ehdr e){\
         Elf##sz##_Phdr p;\
@@ -257,6 +254,8 @@ static void print_header_data(Elf64_Ehdr e){
         }\
     }
 
+#define SECTION_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %8x %8x %8x %8x %s %c"
+#define SECTION_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %8x %8x %8lx %8lx %s %c"
 #define PRINT_SECTION_HEADER_TABLE(sz)\
     static void print_section_header_table##sz (struct ptrsz file_data, Elf##sz##_Ehdr e) \
     {\
