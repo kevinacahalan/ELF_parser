@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include <string.h>
 #include "stuff.h"
 
@@ -161,66 +162,70 @@ static void print_e_ident(unsigned char *ident_data) {
     printf("EI_ABIVERSION: %d\n", abiversion);
 }
 
-static void print_header_data(Elf64_Ehdr e){
-    // Should have line here to printf e_ident data
-    
-    printf("\n...Program Header data:\n");
-
-    // print e_ident
-    print_e_ident(e.e_ident);
-
-    printf("\nOther data:\n");
-
-    // print e_type
-    switch(e.e_type){
-    case ET_NONE:
-    default:
-        printf("e_type: Unknown type.\n");
-        break;
-    case ET_REL:
-        printf("e_type: Relocatable file.\n");
-        break;
-    case ET_EXEC:
-        printf("e_type: Executable file.\n");
-        break;
-    case ET_DYN:
-        printf("e_type: Shared object.\n");
-        break;
-    case ET_CORE:
-        printf("e_type: Core file.\n");
-        break;
+#define PRINT_HEADER_DATA(sz)\
+    static void print_header_data##sz(Elf##sz##_Ehdr e){\
+        /* Should have line here to printf e_ident data */\
+        \
+        printf("\n...Program Header data:\n");\
+\
+        /* print e_ident */\
+        print_e_ident(e.e_ident);\
+\
+        printf("\nOther data:\n");\
+\
+        /* print e_type */\
+        switch(e.e_type){\
+        case ET_NONE:\
+        default:\
+            printf("e_type: Unknown type.\n");\
+            break;\
+        case ET_REL:\
+            printf("e_type: Relocatable file.\n");\
+            break;\
+        case ET_EXEC:\
+            printf("e_type: Executable file.\n");\
+            break;\
+        case ET_DYN:\
+            printf("e_type: Shared object.\n");\
+            break;\
+        case ET_CORE:\
+            printf("e_type: Core file.\n");\
+            break;\
+        }\
+\
+        /* print e_machine */\
+        /* MIGHT BE A HUGE THING ON THE STACK */\
+\
+        int amount = sizeof e_machine_look_up / sizeof e_machine_look_up[0];\
+        printf("e_machine: %s\n", e.e_machine >= amount ? "Unknown": e_machine_look_up[e.e_machine]);\
+\
+        /* print e_version */\
+        switch(e.e_version){\
+        case EV_NONE:\
+            printf("e_version: Invalid version\n");\
+            break;\
+        case EV_CURRENT:\
+            printf("e_version: Current version\n");\
+            break;\
+        default:\
+            printf("e_version: %d\n", e.e_version);\
+            break;\
+        }\
+\
+        printf("e_entry: %016" PRIx##sz "\n", e.e_entry);\
+        printf("e_phoff: %016" PRIx##sz "\n", e.e_phoff);\
+        printf("e_shoff: %016" PRIx##sz "\n", e.e_shoff);\
+        printf("e_flags: %08x\n", e.e_flags);\
+        printf("e_ehsize: %d\n", e.e_ehsize);\
+        printf("e_phentsize: %d\n", e.e_phentsize);\
+        printf("e_phnum: %d\n", e.e_phnum);\
+        printf("e_shentsize: %d\n", e.e_shentsize);\
+        printf("e_shnum: %d\n", e.e_shnum);\
+        printf("e_shstrndx: %d\n", e.e_shstrndx);\
     }
 
-    // print e_machine
-    // MIGHT BE A HUGE THING ON THE STACK
-
-    int amount = sizeof e_machine_look_up / sizeof e_machine_look_up[0];
-    printf("e_machine: %s\n", e.e_machine >= amount ? "Unknown": e_machine_look_up[e.e_machine]);
-
-    // print e_version
-    switch(e.e_version){
-    case EV_NONE:
-        printf("e_version: Invalid version\n");
-        break;
-    case EV_CURRENT:
-        printf("e_version: Current version\n");
-        break;
-    default:
-        printf("e_version: %d\n", e.e_version);
-        break;
-    }
-
-    printf("e_entry: %016lx\n", e.e_entry);
-    printf("e_phoff: %016lx\n", e.e_phoff);
-    printf("e_shoff: %016lx\n", e.e_shoff);
-    printf("e_flags: %08x\n", e.e_flags);
-    printf("e_ehsize: %d\n", e.e_ehsize);
-    printf("e_phentsize: %d\n", e.e_phentsize);
-    printf("e_phnum: %d\n", e.e_phnum);
-    printf("e_shentsize: %d\n", e.e_shentsize);
-    printf("e_shnum: %d\n", e.e_shnum);
-    printf("e_shstrndx: %d\n", e.e_shstrndx);
-}
+PRINT_HEADER_DATA(32)
+PRINT_HEADER_DATA(64)
 
 #define GEN_PROGRAM_HEADER_TABLE_FMT(l) "%8x %8x %8" #l "x %12" #l "x %12" #l "x %8" #l "x %12" #l "x %8" #l "x %c"
 
@@ -318,9 +323,21 @@ int main(int argc, char const* argv[]) {
 
 
     switch (class){
-    case ELFCLASS32:
-        printf("32 bit elf!...currently not supported\n");
+    case ELFCLASS32: {
+        printf("32 bit elf!");
+        // Grab header data
+        Elf32_Ehdr e; // For now assumeing I am dealing with an elf 64
+        if (file_data.size < sizeof e){
+            printf("File does not have enough space for elf header!\n");
+            exit(89);
+        }
+        
+        memcpy(&e, file_data.data, sizeof e);
+        print_header_data32(e);
+        print_program_header_table32(file_data, e);
+        print_section_header_table32(file_data, e);
         exit(123);
+        }
         break;
     case ELFCLASS64:
         printf("64 bit elf!");
@@ -332,7 +349,7 @@ int main(int argc, char const* argv[]) {
         }
         
         memcpy(&e, file_data.data, sizeof e);
-        print_header_data(e);
+        print_header_data64(e);
         print_program_header_table64(file_data, e);
         print_section_header_table64(file_data, e);
 
