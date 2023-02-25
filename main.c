@@ -222,8 +222,10 @@ static void print_header_data(Elf64_Ehdr e){
     printf("e_shstrndx: %d\n", e.e_shstrndx);
 }
 
-#define PROGRAM_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %12x %8x %c"
-#define PROGRAM_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %12lx %8lx %c"
+#define GEN_PROGRAM_HEADER_TABLE_FMT(l) "%8x %8x %8" #l "x %12" #l "x %12" #l "x %8" #l "x %12" #l "x %8" #l "x %c"
+
+#define PROGRAM_HEADER_TABLE_FMT_32 GEN_PROGRAM_HEADER_TABLE_FMT()
+#define PROGRAM_HEADER_TABLE_FMT_64 GEN_PROGRAM_HEADER_TABLE_FMT(l)
 #define PRINT_PROGRAM_HEADER_TABLE(sz)\
     static void print_program_header_table##sz(struct ptrsz file_data, Elf##sz##_Ehdr e){\
         Elf##sz##_Phdr p;\
@@ -254,8 +256,9 @@ static void print_header_data(Elf64_Ehdr e){
         }\
     }
 
-#define SECTION_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %8x %8x %8x %8x %s %c"
-#define SECTION_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %8x %8x %8lx %8lx %s %c"
+#define GEN_SECTION_HEADER_TABLE_FMT(l) "%8x %8x %8" #l "x %12" #l "x %12" #l"x %8" #l"x %8x %8x %8" #l "x %8" #l "x %s %c"
+#define SECTION_HEADER_TABLE_FMT_32 GEN_SECTION_HEADER_TABLE_FMT()
+#define SECTION_HEADER_TABLE_FMT_64 GEN_SECTION_HEADER_TABLE_FMT(l)
 #define PRINT_SECTION_HEADER_TABLE(sz)\
     static void print_section_header_table##sz (struct ptrsz file_data, Elf##sz##_Ehdr e) \
     {\
