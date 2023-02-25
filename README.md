@@ -8,7 +8,7 @@ So far only supports:
 
 - Printing the Program Header Table
 
-- Printing Section Header Table
+- Printing the Section Header Table
 
 The next steps would probably be the .plt and .got
 
