@@ -222,7 +222,12 @@ static void print_header_data(Elf64_Ehdr e){
     printf("e_shstrndx: %d\n", e.e_shstrndx);
 }
 
-#define PRINT_PROGRAM_HEADER_TABLE(sz, fmtstring)\
+#define PROGRAM_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %12x %8x %c"
+#define PROGRAM_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %12lx %8lx %c"
+#define SECTION_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %8x %8x %8x %8x %s %c"
+#define SECTION_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %8x %8x %8lx %8lx %s %c"
+
+#define PRINT_PROGRAM_HEADER_TABLE(sz)\
     static void print_program_header_table##sz(struct ptrsz file_data, Elf##sz##_Ehdr e){\
         Elf##sz##_Phdr p;\
         if(sizeof p != e.e_phentsize){\
@@ -245,14 +250,14 @@ static void print_header_data(Elf64_Ehdr e){
         for (size_t i = 0; i < e.e_phnum; i++){\
             memcpy(&p, file_data.data + e.e_phoff + i * e.e_phentsize, e.e_phentsize);\
             printf(\
-                fmtstring,\
+                PROGRAM_HEADER_TABLE_FMT_##sz,\
                 p.p_type, p.p_flags, p.p_offset, p.p_vaddr, p.p_paddr,\
                 p.p_filesz, p.p_memsz, p.p_align, '\n'\
             );\
         }\
     }
 
-#define PRINT_SECTION_HEADER_TABLE(sz, fmtstring)\
+#define PRINT_SECTION_HEADER_TABLE(sz)\
     static void print_section_header_table##sz (struct ptrsz file_data, Elf##sz##_Ehdr e) \
     {\
         Elf##sz##_Shdr s;\
@@ -281,7 +286,7 @@ static void print_header_data(Elf64_Ehdr e){
         for (size_t i = 0; i < e.e_shnum; i++){\
             memcpy(&s, file_data.data + e.e_shoff + i * e.e_shentsize, e.e_shentsize);\
             printf(\
-                fmtstring,\
+                SECTION_HEADER_TABLE_FMT_##sz,\
                 s.sh_name, s.sh_type, s.sh_flags, s.sh_addr, s.sh_offset, \
                 s.sh_size, s.sh_link, s.sh_info, s.sh_addralign, s.sh_entsize,\
                 s.sh_name + names, '\n'\
@@ -290,14 +295,10 @@ static void print_header_data(Elf64_Ehdr e){
     }
 
 // There are better ways to deal with the format strings
-#define PROGRAM_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %12x %8x %c"
-#define PROGRAM_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %12lx %8lx %c"
-#define SECTION_HEADER_TABLE_FMT_32 "%8x %8x %8x %12x %12x %8x %8x %8x %8x %8x %s %c"
-#define SECTION_HEADER_TABLE_FMT_64 "%8x %8x %8lx %12lx %12lx %8lx %8x %8x %8lx %8lx %s %c"
-PRINT_PROGRAM_HEADER_TABLE(32, PROGRAM_HEADER_TABLE_FMT_32)
-PRINT_SECTION_HEADER_TABLE(32, SECTION_HEADER_TABLE_FMT_32)
-PRINT_PROGRAM_HEADER_TABLE(64, PROGRAM_HEADER_TABLE_FMT_64)
-PRINT_SECTION_HEADER_TABLE(64, SECTION_HEADER_TABLE_FMT_64)
+PRINT_PROGRAM_HEADER_TABLE(32)
+PRINT_SECTION_HEADER_TABLE(32)
+PRINT_PROGRAM_HEADER_TABLE(64)
+PRINT_SECTION_HEADER_TABLE(64)
 
 int main(int argc, char const* argv[]) {
     (void)argc;
